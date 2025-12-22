@@ -7,7 +7,7 @@ Stable tag: 1.0.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Custom REST API endpoint to query LearnDash enrollments and list course students for corporate integrations. Authentication via API Key header.
+Custom REST API endpoint to query LearnDash enrollments and list course students for corporate integrations. Authentication via API Key header (or `api_key` query param for GET testing).
 
 == Description ==
 This plugin exposes a secure REST endpoint that returns LearnDash enrollment information for a specific student or lists all students enrolled in a course.
@@ -19,9 +19,11 @@ This plugin exposes a secure REST endpoint that returns LearnDash enrollment inf
 
 == Usage ==
 Endpoint: `POST /wp-json/co360/v1/learndash/enrollment`
+Debug/testing: `GET /wp-json/co360/v1/learndash/enrollment`
 
 Headers:
 - `X-API-KEY`: Your configured API key.
+GET fallback: `api_key` query string parameter.
 
 Body examples (JSON):
 
@@ -39,6 +41,12 @@ Course roster:
   "course_id": 123
 }
 ```
+
+GET examples for testing:
+
+`/wp-json/co360/v1/learndash/enrollment?course_id=123&api_key=XXXX`
+
+`/wp-json/co360/v1/learndash/enrollment?course_id=123&email=student@example.com&api_key=XXXX`
 
 == Changelog ==
 = 1.0.0 =

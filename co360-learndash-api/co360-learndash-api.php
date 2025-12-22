@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // Define API key constant. In future versions, move this to a settings page.
 if ( ! defined( 'CO360_LD_API_KEY' ) ) {
-    define( 'CO360_LD_API_KEY', 'change_me_to_a_secure_key' );
+    define( 'CO360_LD_API_KEY', 'CAMBIAR_POR_CLAVE_REAL' );
 }
 
 // Plugin path constants.

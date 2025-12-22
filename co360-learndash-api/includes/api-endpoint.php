@@ -33,7 +33,7 @@ class CO360_Learndash_API {
             self::REST_NAMESPACE,
             '/learndash/enrollment',
             [
-                'methods'             => 'POST',
+                'methods'             => [ 'POST', 'GET' ],
                 'callback'            => [ __CLASS__, 'handle_request' ],
                 'permission_callback' => [ __CLASS__, 'check_api_key' ],
                 'args'                => [
@@ -61,6 +61,14 @@ class CO360_Learndash_API {
         $api_key = $request->get_header( 'x-api-key' );
         $api_key = is_string( $api_key ) ? sanitize_text_field( wp_unslash( $api_key ) ) : '';
 
+        // For GET requests, allow api_key query parameter as a fallback for testing scenarios.
+        if ( empty( $api_key ) && 'GET' === $request->get_method() ) {
+            $api_key_param = $request->get_param( 'api_key' );
+            if ( is_string( $api_key_param ) ) {
+                $api_key = sanitize_text_field( wp_unslash( $api_key_param ) );
+            }
+        }
+
         if ( empty( $api_key ) || $api_key !== CO360_LD_API_KEY ) {
             return new \WP_Error(
                 'co360_invalid_api_key',
@@ -80,13 +88,10 @@ class CO360_Learndash_API {
      * @return \WP_REST_Response|\WP_Error Response data.
      */
     public static function handle_request( \WP_REST_Request $request ) {
-        $params = $request->get_json_params();
-        if ( ! is_array( $params ) ) {
-            $params = [];
-        }
+        $params = self::extract_params( $request );
 
-        $course_id = isset( $params['course_id'] ) ? absint( $params['course_id'] ) : 0;
-        $email     = isset( $params['email'] ) ? sanitize_email( wp_unslash( $params['email'] ) ) : '';
+        $course_id = $params['course_id'];
+        $email     = $params['email'];
 
         if ( empty( $course_id ) ) {
             return new \WP_Error(
@@ -110,6 +115,28 @@ class CO360_Learndash_API {
         }
 
         return self::handle_course_list( $course_id );
+    }
+
+    /**
+     * Extract sanitized params from JSON body or query string.
+     *
+     * @param \WP_REST_Request $request REST request.
+     *
+     * @return array{course_id:int,email:string}
+     */
+    protected static function extract_params( \WP_REST_Request $request ) : array {
+        $params = $request->get_json_params();
+        if ( ! is_array( $params ) ) {
+            $params = $request->get_params();
+        }
+
+        $course_id = isset( $params['course_id'] ) ? absint( $params['course_id'] ) : 0;
+        $email     = isset( $params['email'] ) ? sanitize_email( wp_unslash( $params['email'] ) ) : '';
+
+        return [
+            'course_id' => $course_id,
+            'email'     => $email,
+        ];
     }
 
     /**
@@ -139,13 +166,12 @@ class CO360_Learndash_API {
         if ( ! $user || ! $user instanceof \WP_User ) {
             return new \WP_REST_Response(
                 [
-                    'success'     => false,
-                    'message'     => __( 'User not found.', 'co360-learndash-api' ),
+                    'success'     => true,
                     'user_exists' => false,
                     'enrolled'    => false,
                     'completed'   => false,
                 ],
-                404
+                200
             );
         }
 
@@ -197,11 +223,14 @@ class CO360_Learndash_API {
                 continue;
             }
 
+            $enrolled = sfwd_lms_has_access( $course_id, $user->ID );
+
             $students[] = [
                 'user_id'    => $user->ID,
                 'email'      => $user->user_email,
                 'first_name' => get_user_meta( $user->ID, 'first_name', true ),
                 'last_name'  => get_user_meta( $user->ID, 'last_name', true ),
+                'enrolled'   => (bool) $enrolled,
                 'completed'  => (bool) learndash_course_completed( $user->ID, $course_id ),
             ];
         }
