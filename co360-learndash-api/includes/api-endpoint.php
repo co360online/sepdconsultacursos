@@ -223,7 +223,9 @@ class CO360_Learndash_API {
                 continue;
             }
 
-            $enrolled = sfwd_lms_has_access( $course_id, $user->ID );
+            // Users returned by learndash_get_course_users_access_from_meta()
+            // already have access to the course, so they are enrolled.
+            $enrolled = true;
 
             $students[] = [
                 'user_id'    => $user->ID,

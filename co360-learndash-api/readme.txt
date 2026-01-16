@@ -3,7 +3,7 @@ Contributors: co360
 Requires at least: 6.0
 Tested up to: 6.5
 Requires PHP: 7.4.33
-Stable tag: 1.0.0
+Stable tag: 1.0.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -49,5 +49,8 @@ GET examples for testing:
 `/wp-json/co360/v1/learndash/enrollment?course_id=123&email=student@example.com&api_key=XXXX`
 
 == Changelog ==
+= 1.0.1 =
+* Fix roster "enrolled" flag to reflect access list users.
+
 = 1.0.0 =
 * Initial release with enrollment check and course roster endpoint.
