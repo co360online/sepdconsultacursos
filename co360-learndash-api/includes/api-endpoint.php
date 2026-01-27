@@ -286,13 +286,14 @@ class CO360_Learndash_API {
      *
      * @param int|null $timestamp Unix timestamp.
      *
-     * @return string|null Date in d/m/Y or null when missing.
+     * @return string|null Date in YYYY-MM-DD or null when missing.
      */
     protected static function format_human_date( ?int $timestamp ) : ?string {
         if ( null === $timestamp ) {
             return null;
         }
 
-        return date( 'd/m/Y', $timestamp );
+        // Use ISO-like date format for API consumers while keeping timestamps unchanged.
+        return date( 'Y-m-d', $timestamp );
     }
 }
