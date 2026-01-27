@@ -178,11 +178,18 @@ class CO360_Learndash_API {
         $enrolled  = sfwd_lms_has_access( $course_id, $user->ID );
         $completed = learndash_course_completed( $user->ID, $course_id );
 
+        $enrolled_ts  = self::normalize_timestamp( ld_course_access_from( $course_id, $user->ID ) );
+        $completed_ts = self::normalize_timestamp( learndash_user_get_course_completed_date( $user->ID, $course_id ) );
+
         $data = [
             'success'     => true,
             'user_exists' => true,
             'enrolled'    => (bool) $enrolled,
             'completed'   => (bool) $completed,
+            'enrolled_at_ts'  => $enrolled_ts,
+            'enrolled_at'     => self::format_human_date( $enrolled_ts ),
+            'completed_at_ts' => $completed_ts,
+            'completed_at'    => self::format_human_date( $completed_ts ),
         ];
 
         return new \WP_REST_Response( $data, 200 );
@@ -227,6 +234,9 @@ class CO360_Learndash_API {
             // already have access to the course, so they are enrolled.
             $enrolled = true;
 
+            $enrolled_ts  = self::normalize_timestamp( ld_course_access_from( $course_id, $user->ID ) );
+            $completed_ts = self::normalize_timestamp( learndash_user_get_course_completed_date( $user->ID, $course_id ) );
+
             $students[] = [
                 'user_id'    => $user->ID,
                 'email'      => $user->user_email,
@@ -234,6 +244,10 @@ class CO360_Learndash_API {
                 'last_name'  => get_user_meta( $user->ID, 'last_name', true ),
                 'enrolled'   => (bool) $enrolled,
                 'completed'  => (bool) learndash_course_completed( $user->ID, $course_id ),
+                'enrolled_at_ts'  => $enrolled_ts,
+                'enrolled_at'     => self::format_human_date( $enrolled_ts ),
+                'completed_at_ts' => $completed_ts,
+                'completed_at'    => self::format_human_date( $completed_ts ),
             ];
         }
 
@@ -245,5 +259,40 @@ class CO360_Learndash_API {
         ];
 
         return new \WP_REST_Response( $data, 200 );
+    }
+
+    /**
+     * Normalize a LearnDash timestamp return value.
+     *
+     * @param mixed $timestamp Timestamp from LearnDash helpers.
+     *
+     * @return int|null Normalized timestamp or null when missing.
+     */
+    protected static function normalize_timestamp( $timestamp ) : ?int {
+        if ( empty( $timestamp ) || ! is_numeric( $timestamp ) ) {
+            return null;
+        }
+
+        $timestamp = (int) $timestamp;
+        if ( $timestamp <= 0 ) {
+            return null;
+        }
+
+        return $timestamp;
+    }
+
+    /**
+     * Format a human-readable date from a timestamp.
+     *
+     * @param int|null $timestamp Unix timestamp.
+     *
+     * @return string|null Date in d/m/Y or null when missing.
+     */
+    protected static function format_human_date( ?int $timestamp ) : ?string {
+        if ( null === $timestamp ) {
+            return null;
+        }
+
+        return date( 'd/m/Y', $timestamp );
     }
 }
