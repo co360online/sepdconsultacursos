@@ -2,7 +2,7 @@
 /**
  * Plugin Name: CO360 LearnDash API
  * Description: REST API endpoint to check LearnDash enrollments and list course students for corporate integrations.
- * Version: 1.0.4
+ * Version: 1.0.5
  * Author: CO360
  * License: GPL-2.0-or-later
  * Requires PHP: 7.4.33

@@ -175,16 +175,24 @@ class CO360_Learndash_API {
             );
         }
 
-        $enrolled  = sfwd_lms_has_access( $course_id, $user->ID );
-        $completed = learndash_course_completed( $user->ID, $course_id );
+        $completed   = (bool) learndash_course_completed( $user->ID, $course_id );
+        $enrolled_ts = self::normalize_timestamp( ld_course_access_from( $course_id, $user->ID ) );
 
-        $enrolled_ts  = self::normalize_timestamp( ld_course_access_from( $course_id, $user->ID ) );
         $completed_ts = self::normalize_timestamp( learndash_user_get_course_completed_date( $user->ID, $course_id ) );
+        $direct_user_ids = learndash_get_course_users_access_from_meta( $course_id );
+        $direct_lookup   = [];
+
+        if ( is_array( $direct_user_ids ) ) {
+            $direct_lookup = array_fill_keys( array_map( 'intval', $direct_user_ids ), true );
+        }
+
+        $is_direct_access_user = isset( $direct_lookup[ (int) $user->ID ] );
+        $enrolled              = self::calculate_enrolled_status( $course_id, $user->ID, $is_direct_access_user, $enrolled_ts, $completed );
 
         $data = [
             'success'     => true,
             'user_exists' => true,
-            'enrolled'    => (bool) $enrolled,
+            'enrolled'    => $enrolled,
             'completed'   => (bool) $completed,
             'enrolled_at_ts'  => $enrolled_ts,
             'enrolled_at'     => self::format_human_date( $enrolled_ts ),
@@ -204,6 +212,12 @@ class CO360_Learndash_API {
      */
     protected static function handle_course_list( int $course_id ) : \WP_REST_Response {
         $user_ids = self::co360_ld_get_course_user_ids( $course_id );
+        $direct_user_ids = learndash_get_course_users_access_from_meta( $course_id );
+        $direct_lookup   = [];
+
+        if ( is_array( $direct_user_ids ) ) {
+            $direct_lookup = array_fill_keys( array_map( 'intval', $direct_user_ids ), true );
+        }
 
         if ( empty( $user_ids ) || ! is_array( $user_ids ) ) {
             return new \WP_REST_Response(
@@ -230,18 +244,19 @@ class CO360_Learndash_API {
                 continue;
             }
 
-            $enrolled = (bool) sfwd_lms_has_access( $course_id, $user->ID );
-
             $enrolled_ts  = self::normalize_timestamp( ld_course_access_from( $course_id, $user->ID ) );
+            $completed    = (bool) learndash_course_completed( $user->ID, $course_id );
             $completed_ts = self::normalize_timestamp( learndash_user_get_course_completed_date( $user->ID, $course_id ) );
+            $is_direct_access_user = isset( $direct_lookup[ (int) $user->ID ] );
+            $enrolled              = self::calculate_enrolled_status( $course_id, $user->ID, $is_direct_access_user, $enrolled_ts, $completed );
 
             $students[] = [
                 'user_id'    => $user->ID,
                 'email'      => $user->user_email,
                 'first_name' => get_user_meta( $user->ID, 'first_name', true ),
                 'last_name'  => get_user_meta( $user->ID, 'last_name', true ),
-                'enrolled'   => (bool) $enrolled,
-                'completed'  => (bool) learndash_course_completed( $user->ID, $course_id ),
+                'enrolled'   => $enrolled,
+                'completed'  => $completed,
                 'enrolled_at_ts'  => $enrolled_ts,
                 'enrolled_at'     => self::format_human_date( $enrolled_ts ),
                 'completed_at_ts' => $completed_ts,
@@ -317,6 +332,26 @@ class CO360_Learndash_API {
         }
 
         return array_values( array_unique( array_filter( array_map( 'intval', $user_ids ) ) ) );
+    }
+
+    /**
+     * Determine enrolled status using direct access, dates, LearnDash access and completion fallback.
+     *
+     * @param int      $course_id             Course ID.
+     * @param int      $user_id               User ID.
+     * @param bool     $is_direct_access_user Whether user belongs to direct access list.
+     * @param int|null $enrolled_ts           Enrollment timestamp.
+     * @param bool     $completed             Course completed flag.
+     *
+     * @return bool
+     */
+    protected static function calculate_enrolled_status( int $course_id, int $user_id, bool $is_direct_access_user, ?int $enrolled_ts, bool $completed ) : bool {
+        return (bool) (
+            $is_direct_access_user
+            || ! empty( $enrolled_ts )
+            || sfwd_lms_has_access( $course_id, $user_id )
+            || $completed
+        );
     }
 
     /**
