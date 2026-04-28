@@ -203,7 +203,7 @@ class CO360_Learndash_API {
      * @return \WP_REST_Response Response data.
      */
     protected static function handle_course_list( int $course_id ) : \WP_REST_Response {
-        $user_ids = learndash_get_course_users_access_from_meta( $course_id );
+        $user_ids = self::co360_ld_get_course_user_ids( $course_id );
 
         if ( empty( $user_ids ) || ! is_array( $user_ids ) ) {
             return new \WP_REST_Response(
@@ -230,9 +230,7 @@ class CO360_Learndash_API {
                 continue;
             }
 
-            // Users returned by learndash_get_course_users_access_from_meta()
-            // already have access to the course, so they are enrolled.
-            $enrolled = true;
+            $enrolled = (bool) sfwd_lms_has_access( $course_id, $user->ID );
 
             $enrolled_ts  = self::normalize_timestamp( ld_course_access_from( $course_id, $user->ID ) );
             $completed_ts = self::normalize_timestamp( learndash_user_get_course_completed_date( $user->ID, $course_id ) );
@@ -259,6 +257,66 @@ class CO360_Learndash_API {
         ];
 
         return new \WP_REST_Response( $data, 200 );
+    }
+
+    /**
+     * Build a complete user list for a course roster by combining multiple LearnDash sources.
+     *
+     * @param int $course_id Course ID.
+     *
+     * @return int[] Unique user IDs.
+     */
+    protected static function co360_ld_get_course_user_ids( int $course_id ) : array {
+        $user_ids = [];
+
+        // Source 1: users with direct course access metadata.
+        $direct_user_ids = learndash_get_course_users_access_from_meta( $course_id );
+        if ( is_array( $direct_user_ids ) ) {
+            $user_ids = array_merge( $user_ids, $direct_user_ids );
+        }
+
+        // Source 2: users with completed activity records in LearnDash activity table.
+        global $wpdb;
+        $activity_table = $wpdb->prefix . 'learndash_user_activity';
+        $table_exists   = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $activity_table ) );
+
+        if ( $table_exists === $activity_table ) {
+            $completed_user_ids = $wpdb->get_col(
+                $wpdb->prepare(
+                    "SELECT DISTINCT user_id
+                    FROM {$activity_table}
+                    WHERE course_id = %d
+                        AND activity_type = %s
+                        AND activity_completed > 0",
+                    $course_id,
+                    'course'
+                )
+            );
+
+            if ( is_array( $completed_user_ids ) ) {
+                $user_ids = array_merge( $user_ids, $completed_user_ids );
+            }
+        }
+
+        // Source 3: users with potential access via LearnDash groups related to this course.
+        if ( function_exists( 'learndash_get_course_groups' ) && function_exists( 'learndash_get_groups_user_ids' ) ) {
+            $group_ids = learndash_get_course_groups( $course_id, true );
+            if ( is_array( $group_ids ) ) {
+                foreach ( $group_ids as $group_id ) {
+                    $group_id = absint( $group_id );
+                    if ( $group_id <= 0 ) {
+                        continue;
+                    }
+
+                    $group_user_ids = learndash_get_groups_user_ids( $group_id );
+                    if ( is_array( $group_user_ids ) ) {
+                        $user_ids = array_merge( $user_ids, $group_user_ids );
+                    }
+                }
+            }
+        }
+
+        return array_values( array_unique( array_filter( array_map( 'intval', $user_ids ) ) ) );
     }
 
     /**
